@@ -3,6 +3,9 @@ Optional enrichment — NeMo Guardrails (không chấm)
   Define Colang rules for banking safety
 """
 import textwrap
+import json
+
+from core.config import get_red_model, red_uses_gemini, red_openai_client_kwargs
 
 try:
     from nemoguardrails import RailsConfig, LLMRails
@@ -16,21 +19,17 @@ except ImportError:
 # NeMo YAML config — model and rails settings
 # ============================================================
 
-NEMO_YAML_CONFIG = textwrap.dedent("""\
-    models:
-      - type: main
-        engine: google
-        model: gemini-3.5-flash
-
-    rails:
-      input:
-        flows:
-          - check user message
-
-      output:
-        flows:
-          - check bot response
-""")
+def build_nemo_config() -> str:
+    """JSON is valid YAML; obtain credentials at initialization, never print them."""
+    model = {"type": "main", "engine": "google" if red_uses_gemini() else "openai",
+             "model": get_red_model()}
+    if not red_uses_gemini():
+        model["parameters"] = red_openai_client_kwargs()
+    return json.dumps({
+        "models": [model],
+        "rails": {"input": {"flows": ["check user message"]},
+                  "output": {"flows": ["check bot response"]}},
+    })
 
 
 # ============================================================
@@ -118,7 +117,7 @@ def init_nemo():
         return None
 
     config = RailsConfig.from_content(
-        yaml_content=NEMO_YAML_CONFIG,
+        yaml_content=build_nemo_config(),
         colang_content=COLANG_CONFIG,
     )
     nemo_rails = LLMRails(config)

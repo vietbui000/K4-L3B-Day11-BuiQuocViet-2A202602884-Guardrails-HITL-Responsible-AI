@@ -137,6 +137,8 @@ def get_red_provider() -> str:
         or os.environ.get("LLM_PROVIDER")
         or "openai"
     ).strip().lower()
+    if raw == "groq":
+        return "groq"
     if raw in {"gemini", "google", "adk"}:
         return PROVIDER_GEMINI
     return PROVIDER_OPENAI
@@ -144,6 +146,8 @@ def get_red_provider() -> str:
 
 def get_red_model() -> str:
     """Model Red Team từ .env (cùng cho default + advance)."""
+    if get_red_provider() == "groq":
+        return os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
     if get_red_provider() == PROVIDER_GEMINI:
         return (
             os.environ.get("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip()
@@ -169,7 +173,16 @@ def get_openai_api_key() -> str:
     return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
+def get_red_api_key() -> str:
+    variable = {"groq": "GROQ_API_KEY", "gemini": "GOOGLE_API_KEY",
+                "openai": "OPENAI_API_KEY"}[get_red_provider()]
+    return os.environ.get(variable, "").strip()
+
+
 def red_openai_client_kwargs() -> dict:
+    if get_red_provider() == "groq":
+        return {"api_key": os.environ.get("GROQ_API_KEY", "").strip() or None,
+                "base_url": "https://api.groq.com/openai/v1"}
     return {"api_key": get_openai_api_key() or None}
 
 
@@ -180,7 +193,7 @@ def red_provider_label(tier: str = "advance") -> str:
 
 
 def red_uses_openai_sdk() -> bool:
-    return get_red_provider() == PROVIDER_OPENAI
+    return get_red_provider() in {PROVIDER_OPENAI, "groq"}
 
 
 def red_uses_gemini() -> bool:
@@ -244,7 +257,11 @@ def setup_api_key():
 
     red = get_red_provider()
     model = get_red_model()
-    if red == PROVIDER_GEMINI:
+    if red == "groq":
+        if not os.environ.get("GROQ_API_KEY", "").strip():
+            raise ValueError("GROQ_API_KEY is required for Groq.")
+        print(f"Red / Red Advance - groq:{model} (experimental, outside lab scoring models)")
+    elif red == PROVIDER_GEMINI:
         if not os.environ.get("GOOGLE_API_KEY", "").strip():
             os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
